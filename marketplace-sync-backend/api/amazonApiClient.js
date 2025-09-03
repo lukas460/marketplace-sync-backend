@@ -33,7 +33,7 @@ async function getAmazonAccessToken() {
         });
 
         const data = await response.json();
-
+        console.log('Antwort vom Amazon Sandbox Server:', JSON.stringify(data, null, 2));
         if (!response.ok) {
             throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
         }
