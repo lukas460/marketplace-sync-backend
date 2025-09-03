@@ -33,8 +33,9 @@ async function getAmazonAccessToken() {
         });
 
         const data = await response.json();
-        console.log('Antwort vom Amazon Sandbox Server:', JSON.stringify(data, null, 2));
+        
         if (!response.ok) {
+            console.error('Antwort vom Amazon Auth Server (FEHLER):', JSON.stringify(data, null, 2));
             throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
         }
 
@@ -53,10 +54,9 @@ const amazonApiClient = {
         console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
         const accessToken = await getAmazonAccessToken();
 
-        // IMPORTANT: Use the correct sandbox endpoint for your region. This is for Europe.
-        // You MUST replace 'YOUR_MARKETPLACE_ID' with your actual marketplace ID (e.g., A1PA6795UKMFR9 for Germany).
-        const marketplaceId = 'ATVPDKIKX0DER'; // <-- HIER IHRE MARKETPLACE ID EINTRAGEN
-        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-eu.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
+        // KORREKTUR: Dies sind die korrekten Werte für den amerikanischen Marktplatz (NA).
+        const marketplaceId = 'ATVPDKIKX0DER'; 
+        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
 
         try {
             const response = await fetch(sandboxEndpoint, {
@@ -67,6 +67,8 @@ const amazonApiClient = {
             });
             
             const data = await response.json();
+            // Diese Log-Nachricht ist entscheidend für die Fehlersuche.
+            console.log('Antwort vom Amazon Sandbox Server:', JSON.stringify(data, null, 2));
 
             if (data.errors && data.errors.length > 0) {
                  throw new Error(`Amazon Sandbox API Error: ${data.errors[0].message}`);
@@ -79,7 +81,6 @@ const amazonApiClient = {
                 quantity: item.inventoryDetails?.fulfillableQuantity || 0
             }));
 
-            // If sandbox returns empty, send back dummy data so the sync can continue
             return formattedInventory.length > 0 ? formattedInventory : [{sku: 'SANDBOX-SKU', quantity: 10}];
 
         } catch (error) {
@@ -88,7 +89,6 @@ const amazonApiClient = {
         }
     },
     
-    // The other functions remain as placeholders for now
     createMCFOrders: async (orders) => { 
         console.log('AMAZON_API: Simulating createMCFOrders call...');
         return { success: true, created: orders.length };
@@ -100,3 +100,4 @@ const amazonApiClient = {
 };
 
 module.exports = amazonApiClient;
+
