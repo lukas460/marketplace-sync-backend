@@ -51,7 +51,7 @@ const amazonApiClient = {
 
         // This is the correct ID for the US Marketplace.
         const marketplaceId = 'ATVPDKIKX0DER'; 
-        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
+        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}`;
 
         try {
             const response = await fetch(sandboxEndpoint, {
