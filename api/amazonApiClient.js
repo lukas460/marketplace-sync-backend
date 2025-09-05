@@ -8,19 +8,47 @@ const {
 } = process.env;
 
 async function getAmazonAccessToken() {
-    // Diese Funktion bleibt unverändert...
     console.log('AMAZON_API: Authenticating with LWA to get new Access Token...');
     const tokenUrl = 'https://api.amazon.com/auth/o2/token';
-    const body = new URLSearchParams({ /* ... unverändert ... */ });
-    // ... der Rest der Funktion ist identisch ...
-    const response = await fetch(tokenUrl, { /* ... */ });
-    const data = await response.json();
-    if (!response.ok) {
-        console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
-        throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
+    
+    const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: AMAZON_REFRESH_TOKEN,
+        client_id: AMAZON_CLIENT_ID,
+        client_secret: AMAZON_CLIENT_SECRET
+    });
+
+    try {
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+
+        // --- NEUE ÄNDERUNG: Wir lesen die Antwort zuerst als Text, um JSON-Fehler zu vermeiden ---
+        const responseText = await response.text();
+        let data;
+
+        try {
+            // Wir versuchen, den Text als JSON zu parsen
+            data = JSON.parse(responseText);
+        } catch (e) {
+            // Wenn das fehlschlägt, ist die Antwort kein JSON (wahrscheinlich eine HTML-Fehlerseite)
+            console.error('ERROR: Amazon did not return valid JSON. Full response:', responseText);
+            throw new Error('Failed to parse Amazon auth response. It was not JSON.');
+        }
+        
+        if (!response.ok) {
+            console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
+            throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
+        }
+
+        console.log('AMAZON_API: Successfully received new Access Token.');
+        return data.access_token;
+    } catch (error) {
+        console.error("Fatal error during Amazon Access Token retrieval:", error);
+        throw error;
     }
-    console.log('AMAZON_API: Successfully received new Access Token.');
-    return data.access_token;
 }
 
 const amazonApiClient = {
@@ -31,14 +59,12 @@ const amazonApiClient = {
         const marketplaceId = 'ATVPDKIKX0DER'; 
         const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
         
-        // --- NEUE ÄNDERUNG: Wir definieren die Request-Header hier ---
         const requestHeaders = {
             'x-amz-access-token': accessToken,
             'Content-Type': 'application/json'
         };
 
         try {
-            // --- NEUE ÄNDERUNG: Wir protokollieren die Anfrage-Details ---
             console.log('--- START AMAZON REQUEST DETAILS ---');
             console.log('Timestamp:', new Date().toISOString());
             console.log('Endpoint:', sandboxEndpoint);
@@ -53,7 +79,6 @@ const amazonApiClient = {
             
             const data = await response.json();
             
-            // --- NEUE ÄNDERUNG: Wir protokollieren die Antwort-Details ---
             const responseHeaders = {};
             response.headers.forEach((value, name) => {
                 responseHeaders[name] = value;
@@ -81,7 +106,6 @@ const amazonApiClient = {
         }
     },
     
-    // Die anderen Funktionen bleiben unverändert
     createMCFOrders: async (orders) => { /* ... unverändert ... */ },
     getTrackingForShippedOrders: async () => { /* ... unverändert ... */ }
 };
