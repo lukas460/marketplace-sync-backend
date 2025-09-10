@@ -1,5 +1,6 @@
 // api/amazonApiClient.js
 // api/amazonApiClient.js
+// api/amazonApiClient.js
 // CLEAN VERSION - NO marketplaceIds
 
 const {
@@ -90,5 +91,4 @@ const amazonApiClient = {
 };
 
 module.exports = amazonApiClient;
-
 ```
