@@ -1,4 +1,5 @@
 // api/amazonApiClient.js
+// api/amazonApiClient.js
 // CLEAN VERSION - NO marketplaceIds
 
 const {
@@ -46,7 +47,8 @@ const amazonApiClient = {
         const accessToken = await getAmazonAccessToken();
 
         const marketplaceId = 'ATVPDKIKX0DER'; // US marketplace ID
-        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}`;
+        // HINWEIS: Der Parameter wurde zurück auf 'marketplaceIds' (Plural) geändert, da dies laut Amazon-Dokumentation korrekt ist.
+        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
 
         try {
             const response = await fetch(sandboxEndpoint, {
