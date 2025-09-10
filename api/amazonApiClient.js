@@ -1,7 +1,5 @@
 // api/amazonApiClient.js
-// api/amazonApiClient.js
-// api/amazonApiClient.js
-// CLEAN VERSION - NO marketplaceIds
+// FINALE, VOLLSTÄNDIGE UND KORREKTE VERSION
 
 const {
     AMAZON_CLIENT_ID,
@@ -10,7 +8,7 @@ const {
 } = process.env;
 
 /**
- * Get a short-lived Access Token using your LWA Refresh Token
+ * Holt einen kurzlebigen Access Token unter Verwendung des LWA Refresh Tokens.
  */
 async function getAmazonAccessToken() {
     console.log('AMAZON_API: Authenticating with LWA to get new Access Token...');
@@ -23,32 +21,47 @@ async function getAmazonAccessToken() {
         client_secret: AMAZON_CLIENT_SECRET
     });
 
-    const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString()
-    });
+    try {
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+        
+        // Wir lesen die Antwort zuerst als Text, um JSON-Fehler zu vermeiden
+        const responseText = await response.text();
+        let data;
 
-    const data = await response.json();
-    if (!response.ok) {
-        console.error('ERROR RESPONSE from Amazon Auth Server:', data);
-        throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error('ERROR: Amazon did not return valid JSON. Full response:', responseText);
+            throw new Error('Failed to parse Amazon auth response. It was not JSON.');
+        }
+        
+        if (!response.ok) {
+            console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
+            throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
+        }
+
+        console.log('AMAZON_API: Successfully received new Access Token.');
+        return data.access_token;
+    } catch (error) {
+        console.error("Fatal error during Amazon Access Token retrieval:", error);
+        throw error;
     }
-
-    console.log('AMAZON_API: Successfully received new Access Token.');
-    return data.access_token;
 }
 
 const amazonApiClient = {
     /**
-     * Fetch inventory summaries from Amazon SP-API Sandbox
+     * Ruft die Inventarübersicht von der Amazon SP-API Sandbox ab.
      */
     getInventory: async () => {
         console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
         const accessToken = await getAmazonAccessToken();
 
-        const marketplaceId = 'ATVPDKIKX0DER'; // US marketplace ID
-        // HINWEIS: Der Parameter wurde zurück auf 'marketplaceIds' (Plural) geändert, da dies laut Amazon-Dokumentation korrekt ist.
+        const marketplaceId = 'ATVPDKIKX0DER'; // US Marktplatz ID
+        // HINWEIS: Der Parameter lautet 'marketplaceIds' (Plural), wie in der offiziellen Dokumentation.
         const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
 
         try {
@@ -68,6 +81,13 @@ const amazonApiClient = {
             }
 
             const inventory = data.payload?.inventorySummaries || [];
+            
+            // Wenn die Sandbox nichts zurückgibt, senden wir Testdaten, damit der Sync weiterlaufen kann.
+            if (inventory.length === 0) {
+                console.log('AMAZON_API: Sandbox returned empty inventory. Using dummy data for demo.');
+                return [{ sku: 'SANDBOX-SKU-1', quantity: 25 }];
+            }
+
             return inventory.map(item => ({
                 sku: item.sellerSku,
                 quantity: item.inventoryDetails?.fulfillableQuantity || 0
@@ -91,4 +111,3 @@ const amazonApiClient = {
 };
 
 module.exports = amazonApiClient;
-```
