@@ -1,5 +1,5 @@
 // api/amazonApiClient.js
-// FINALE VERSION FÜR SUPPORT-TICKET
+// FINALE SAUBERE VERSION
 
 const {
     AMAZON_CLIENT_ID,
@@ -7,10 +7,13 @@ const {
     AMAZON_REFRESH_TOKEN
 } = process.env;
 
+/**
+ * Holt einen kurzlebigen Access Token unter Verwendung des LWA Refresh Tokens.
+ */
 async function getAmazonAccessToken() {
     console.log('AMAZON_API: Authenticating with LWA to get new Access Token...');
     const tokenUrl = 'https://api.amazon.com/auth/o2/token';
-    
+
     const body = new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: AMAZON_REFRESH_TOKEN,
@@ -25,18 +28,7 @@ async function getAmazonAccessToken() {
             body: body.toString()
         });
 
-        // --- NEUE ÄNDERUNG: Wir lesen die Antwort zuerst als Text, um JSON-Fehler zu vermeiden ---
-        const responseText = await response.text();
-        let data;
-
-        try {
-            // Wir versuchen, den Text als JSON zu parsen
-            data = JSON.parse(responseText);
-        } catch (e) {
-            // Wenn das fehlschlägt, ist die Antwort kein JSON (wahrscheinlich eine HTML-Fehlerseite)
-            console.error('ERROR: Amazon did not return valid JSON. Full response:', responseText);
-            throw new Error('Failed to parse Amazon auth response. It was not JSON.');
-        }
+        const data = await response.json();
         
         if (!response.ok) {
             console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
@@ -46,17 +38,22 @@ async function getAmazonAccessToken() {
         console.log('AMAZON_API: Successfully received new Access Token.');
         return data.access_token;
     } catch (error) {
-        console.error("Fatal error during Amazon Access Token retrieval:", error);
+        console.error("Error getting Amazon Access Token:", error);
         throw error;
     }
 }
 
+
 const amazonApiClient = {
+    /**
+     * Ruft Inventar-Zusammenfassungen von der Amazon SP-API Sandbox ab.
+     */
     getInventory: async () => {
         console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
         const accessToken = await getAmazonAccessToken();
 
-        const marketplaceId = 'ATVPDKIKX0DER'; 
+        // Dies ist der saubere, korrekte Wert für den US-Marktplatz.
+        const marketplaceId = 'ATVPDKIKX0DER';
         const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
         
         const requestHeaders = {
@@ -66,11 +63,7 @@ const amazonApiClient = {
 
         try {
             console.log('--- START AMAZON REQUEST DETAILS ---');
-            console.log('Timestamp:', new Date().toISOString());
             console.log('Endpoint:', sandboxEndpoint);
-            console.log('Method:', 'GET');
-            console.log('Request Headers:', JSON.stringify(requestHeaders, null, 2));
-            console.log('Request Body: N/A (GET Request)');
             
             const response = await fetch(sandboxEndpoint, {
                 method: 'GET',
@@ -94,7 +87,8 @@ const amazonApiClient = {
                  throw new Error(`Amazon API Error: ${data.errors[0].message}`);
             }
 
-            const inventory = data.payload.inventorySummaries || [];
+            // Verarbeitet die erfolgreiche Antwort
+            const inventory = data.payload?.inventorySummaries || [];
             return inventory.map(item => ({
                 sku: item.sellerSku,
                 quantity: item.inventoryDetails?.fulfillableQuantity || 0
@@ -106,9 +100,17 @@ const amazonApiClient = {
         }
     },
     
-    createMCFOrders: async (orders) => { /* ... unverändert ... */ },
-    getTrackingForShippedOrders: async () => { /* ... unverändert ... */ }
+    // Die anderen Funktionen bleiben vorerst als Simulationen bestehen.
+    createMCFOrders: async (orders) => { 
+        console.log('AMAZON_API: Simulating createMCFOrders call...');
+        return { success: true, created: orders.length };
+    },
+    getTrackingForShippedOrders: async () => { 
+        console.log('AMAZON_API: Simulating getTrackingForShippedOrders call...');
+        return [];
+    }
 };
 
 module.exports = amazonApiClient;
 
+```
