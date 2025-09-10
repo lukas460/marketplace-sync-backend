@@ -71,6 +71,9 @@ const amazonApiClient = {
     const marketplaceId = "ATVPDKIKX0DER"; // US marketplace
     const url = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}`;
 
+    // 🔍 Debug: print the full URL being requested
+    console.log("DEBUG: Fetching URL ->", url);
+
     try {
       const response = await fetch(url, {
         method: "GET",
