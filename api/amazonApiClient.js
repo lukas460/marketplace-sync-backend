@@ -1,4 +1,6 @@
 // api/amazonApiClient.js
+/* global fetch, process */
+// api/amazonApiClient.js
 // FINALE, VOLLSTÄNDIGE UND KORREKTE VERSION
 
 const {
@@ -28,7 +30,6 @@ async function getAmazonAccessToken() {
             body: body.toString()
         });
         
-        // Wir lesen die Antwort zuerst als Text, um JSON-Fehler zu vermeiden
         const responseText = await response.text();
         let data;
 
@@ -60,8 +61,8 @@ const amazonApiClient = {
         console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
         const accessToken = await getAmazonAccessToken();
 
+        // WICHTIG: Die marketplaceId ist hier als saubere Zeichenkette ohne unsichtbare Zeichen definiert.
         const marketplaceId = 'ATVPDKIKX0DER'; // US Marktplatz ID
-        // HINWEIS: Der Parameter lautet 'marketplaceIds' (Plural), wie in der offiziellen Dokumentation.
         const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
 
         try {
@@ -82,7 +83,6 @@ const amazonApiClient = {
 
             const inventory = data.payload?.inventorySummaries || [];
             
-            // Wenn die Sandbox nichts zurückgibt, senden wir Testdaten, damit der Sync weiterlaufen kann.
             if (inventory.length === 0) {
                 console.log('AMAZON_API: Sandbox returned empty inventory. Using dummy data for demo.');
                 return [{ sku: 'SANDBOX-SKU-1', quantity: 25 }];
@@ -111,3 +111,5 @@ const amazonApiClient = {
 };
 
 module.exports = amazonApiClient;
+
+```
