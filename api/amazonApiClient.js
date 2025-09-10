@@ -1,115 +1,123 @@
 // api/amazonApiClient.js
 /* global fetch, process */
-// api/amazonApiClient.js
-// FINALE, VOLLSTÄNDIGE UND KORREKTE VERSION
 
+// Load secure LWA credentials from environment
 const {
-    AMAZON_CLIENT_ID,
-    AMAZON_CLIENT_SECRET,
-    AMAZON_REFRESH_TOKEN
+  AMAZON_CLIENT_ID,
+  AMAZON_CLIENT_SECRET,
+  AMAZON_REFRESH_TOKEN,
 } = process.env;
 
 /**
- * Holt einen kurzlebigen Access Token unter Verwendung des LWA Refresh Tokens.
+ * Exchanges the Refresh Token for a short-lived Access Token.
  */
 async function getAmazonAccessToken() {
-    console.log('AMAZON_API: Authenticating with LWA to get new Access Token...');
-    const tokenUrl = 'https://api.amazon.com/auth/o2/token';
+  console.log("AMAZON_API: Authenticating with LWA to get new Access Token...");
+  const tokenUrl = "https://api.amazon.com/auth/o2/token";
 
-    const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: AMAZON_REFRESH_TOKEN,
-        client_id: AMAZON_CLIENT_ID,
-        client_secret: AMAZON_CLIENT_SECRET
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: AMAZON_REFRESH_TOKEN,
+    client_id: AMAZON_CLIENT_ID,
+    client_secret: AMAZON_CLIENT_SECRET,
+  });
+
+  try {
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
     });
 
+    const responseText = await response.text();
+    let data;
+
     try {
-        const response = await fetch(tokenUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-        
-        const responseText = await response.text();
-        let data;
-
-        try {
-            data = JSON.parse(responseText);
-        } catch (e) {
-            console.error('ERROR: Amazon did not return valid JSON. Full response:', responseText);
-            throw new Error('Failed to parse Amazon auth response. It was not JSON.');
-        }
-        
-        if (!response.ok) {
-            console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
-            throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
-        }
-
-        console.log('AMAZON_API: Successfully received new Access Token.');
-        return data.access_token;
-    } catch (error) {
-        console.error("Fatal error during Amazon Access Token retrieval:", error);
-        throw error;
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error(
+        "ERROR: Amazon did not return valid JSON. Full response:",
+        responseText
+      );
+      throw new Error("Failed to parse Amazon auth response. It was not JSON.");
     }
+
+    if (!response.ok) {
+      console.error(
+        "ERROR RESPONSE from Amazon Auth Server:",
+        JSON.stringify(data, null, 2)
+      );
+      throw new Error(
+        `Amazon Auth Error: ${data.error_description || "Failed to get access token"}`
+      );
+    }
+
+    console.log("AMAZON_API: Successfully received new Access Token.");
+    return data.access_token;
+  } catch (error) {
+    console.error("Fatal error during Amazon Access Token retrieval:", error);
+    throw error;
+  }
 }
 
 const amazonApiClient = {
-    /**
-     * Ruft die Inventarübersicht von der Amazon SP-API Sandbox ab.
-     */
-    getInventory: async () => {
-        console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
-        const accessToken = await getAmazonAccessToken();
+  /**
+   * Get inventory summaries from the Amazon SP-API Sandbox.
+   */
+  getInventory: async () => {
+    console.log("AMAZON_API: Calling SANDBOX getInventory endpoint...");
+    const accessToken = await getAmazonAccessToken();
 
-        // WICHTIG: Die marketplaceId ist hier als saubere Zeichenkette ohne unsichtbare Zeichen definiert.
-        const marketplaceId = 'ATVPDKIKX0DER'; // US Marktplatz ID
-        const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&marketplaceIds=${marketplaceId}`;
+    const marketplaceId = "ATVPDKIKX0DER"; // US marketplace
+    const url = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}`;
 
-        try {
-            const response = await fetch(sandboxEndpoint, {
-                method: 'GET',
-                headers: {
-                    'x-amz-access-token': accessToken,
-                    'Content-Type': 'application/json'
-                }
-            });
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "x-amz-access-token": accessToken,
+          "Content-Type": "application/json",
+        },
+      });
 
-            const data = await response.json();
-            console.log('RESPONSE from Amazon Sandbox Server:', JSON.stringify(data, null, 2));
+      const data = await response.json();
+      console.log(
+        "RESPONSE from Amazon Sandbox Server:",
+        JSON.stringify(data, null, 2)
+      );
 
-            if (data.errors?.length) {
-                throw new Error(`Amazon API Error: ${data.errors[0].message}`);
-            }
+      if (data.errors?.length) {
+        throw new Error(`Amazon API Error: ${data.errors[0].message}`);
+      }
 
-            const inventory = data.payload?.inventorySummaries || [];
-            
-            if (inventory.length === 0) {
-                console.log('AMAZON_API: Sandbox returned empty inventory. Using dummy data for demo.');
-                return [{ sku: 'SANDBOX-SKU-1', quantity: 25 }];
-            }
+      const inventory = data.payload?.inventorySummaries || [];
 
-            return inventory.map(item => ({
-                sku: item.sellerSku,
-                quantity: item.inventoryDetails?.fulfillableQuantity || 0
-            }));
+      if (inventory.length === 0) {
+        console.log(
+          "AMAZON_API: Sandbox returned empty inventory. Using dummy data."
+        );
+        return [{ sku: "SANDBOX-SKU-1", quantity: 25 }];
+      }
 
-        } catch (error) {
-            console.error('Error fetching Amazon sandbox inventory:', error);
-            throw error;
-        }
-    },
-
-    createMCFOrders: async (orders) => {
-        console.log('AMAZON_API: Simulating createMCFOrders call...');
-        return { success: true, created: orders.length };
-    },
-
-    getTrackingForShippedOrders: async () => {
-        console.log('AMAZON_API: Simulating getTrackingForShippedOrders call...');
-        return [];
+      return inventory.map((item) => ({
+        sku: item.sellerSku,
+        quantity: item.inventoryDetails?.fulfillableQuantity || 0,
+      }));
+    } catch (error) {
+      console.error("Error fetching Amazon sandbox inventory:", error);
+      throw error;
     }
+  },
+
+  createMCFOrders: async (orders) => {
+    console.log("AMAZON_API: Simulating createMCFOrders call...");
+    return { success: true, created: orders.length };
+  },
+
+  getTrackingForShippedOrders: async () => {
+    console.log("AMAZON_API: Simulating getTrackingForShippedOrders call...");
+    return [];
+  },
 };
 
 module.exports = amazonApiClient;
-
-```
