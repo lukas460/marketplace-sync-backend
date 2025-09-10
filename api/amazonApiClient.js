@@ -1,6 +1,6 @@
 // api/amazonApiClient.js
 require('dotenv').config();
-const fetch = require('node-fetch');
+const fetch = global.fetch;
 const crypto = require('crypto');
 
 let cachedAccessToken = null;
