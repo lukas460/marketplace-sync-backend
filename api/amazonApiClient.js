@@ -1,67 +1,49 @@
-/* global fetch, process */
 // api/amazonApiClient.js
-// FINAL SANDBOX VERSION (fixed to remove marketplaceIds)
+require('dotenv').config();
+const fetch = require('node-fetch');
+const crypto = require('crypto');
 
-const {
-    AMAZON_CLIENT_ID,
-    AMAZON_CLIENT_SECRET,
-    AMAZON_REFRESH_TOKEN
-} = process.env;
+let cachedAccessToken = null;
+let tokenExpiry = null;
 
-/**
- * Exchanges the long-lived Refresh Token for a short-lived Access Token.
- */
+// Get LWA (Login With Amazon) Access Token
 async function getAmazonAccessToken() {
-    console.log('AMAZON_API: Authenticating with LWA to get new Access Token...');
-    const tokenUrl = 'https://api.amazon.com/auth/o2/token';
+    if (cachedAccessToken && tokenExpiry && new Date() < tokenExpiry) {
+        return cachedAccessToken;
+    }
 
-    const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: AMAZON_REFRESH_TOKEN,
-        client_id: AMAZON_CLIENT_ID,
-        client_secret: AMAZON_CLIENT_SECRET
+    console.log("AMAZON_API: Authenticating with LWA to get new Access Token...");
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "refresh_token");
+    params.append("refresh_token", process.env.AMAZON_REFRESH_TOKEN);
+    params.append("client_id", process.env.AMAZON_CLIENT_ID);
+    params.append("client_secret", process.env.AMAZON_CLIENT_SECRET);
+
+    const response = await fetch("https://api.amazon.com/auth/o2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params
     });
 
-    try {
-        const response = await fetch(tokenUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-
-        const responseText = await response.text();
-        let data;
-
-        try {
-            data = JSON.parse(responseText);
-        } catch (e) {
-            console.error('ERROR: Amazon did not return valid JSON. Full response:', responseText);
-            throw new Error('Failed to parse Amazon auth response. It was not JSON.');
-        }
-
-        if (!response.ok) {
-            console.error('ERROR RESPONSE from Amazon Auth Server:', JSON.stringify(data, null, 2));
-            throw new Error(`Amazon Auth Error: ${data.error_description || 'Failed to get access token'}`);
-        }
-
-        console.log('AMAZON_API: Successfully received new Access Token.');
-        return data.access_token;
-    } catch (error) {
-        console.error("Fatal error during Amazon Access Token retrieval:", error);
-        throw error;
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error("Failed to get LWA token: " + JSON.stringify(data));
     }
+
+    cachedAccessToken = data.access_token;
+    tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
+    console.log("AMAZON_API: Successfully received new Access Token.");
+    return cachedAccessToken;
 }
 
-const amazonApiClient = {
-    /**
-     * Fetch inventory summaries from the Amazon SP-API Sandbox.
-     */
+module.exports = {
+    // ✅ Sandbox-friendly getInventory
     getInventory: async () => {
         console.log('AMAZON_API: Calling SANDBOX getInventory endpoint...');
         const accessToken = await getAmazonAccessToken();
 
-        // US Marketplace ID (used as granularityId in Sandbox)
-        const marketplaceId = 'ATVPDKIKX0DER';
+        const marketplaceId = 'ATVPDKIKX0DER'; // US marketplace
         const sandboxEndpoint = `https://sandbox.sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}`;
 
         console.log('DEBUG: Fetching URL ->', sandboxEndpoint);
@@ -78,42 +60,37 @@ const amazonApiClient = {
             const data = await response.json();
             console.log('RESPONSE from Amazon Sandbox Server:', JSON.stringify(data, null, 2));
 
+            // 🚨 If sandbox responds with error, return dummy inventory
             if (data.errors?.length) {
-                throw new Error(`Amazon API Error: ${data.errors[0].message}`);
+                console.warn('SANDBOX WARNING: Amazon returned error. Using dummy inventory.');
+                return [
+                    { sku: 'SANDBOX-SKU-1', quantity: 25 },
+                    { sku: 'SANDBOX-SKU-2', quantity: 10 }
+                ];
             }
 
             const inventory = data.payload?.inventorySummaries || [];
-
-            if (inventory.length === 0) {
-                console.log('AMAZON_API: Sandbox returned empty inventory. Using dummy data.');
-                return [{ sku: 'SANDBOX-SKU-1', quantity: 25 }];
-            }
-
             return inventory.map(item => ({
                 sku: item.sellerSku,
                 quantity: item.inventoryDetails?.fulfillableQuantity || 0
             }));
         } catch (error) {
             console.error('Error fetching Amazon sandbox inventory:', error);
-            throw error;
+            // Fallback dummy inventory
+            return [{ sku: 'SANDBOX-SKU-ERROR', quantity: 0 }];
         }
     },
 
-    /**
-     * Simulates MCF order creation in the Sandbox.
-     */
+    // Dummy implementations for the rest
     createMCFOrders: async (orders) => {
-        console.log('AMAZON_API: Simulating createMCFOrders call...');
-        return { success: true, created: orders.length };
+        console.log("SANDBOX: Pretending to create MCF orders:", orders.length);
+        return true;
     },
 
-    /**
-     * Simulates tracking retrieval in the Sandbox.
-     */
     getTrackingForShippedOrders: async () => {
-        console.log('AMAZON_API: Simulating getTrackingForShippedOrders call...');
-        return [];
+        console.log("SANDBOX: Returning dummy tracking updates...");
+        return [
+            { orderId: "SANDBOX-ORDER-1", trackingNumber: "1234567890", carrier: "UPS" }
+        ];
     }
 };
-
-module.exports = amazonApiClient;
